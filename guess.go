@@ -9,77 +9,110 @@ import (
     "time"
 )
 
-func playGame(conn net.Conn) {
+type Game struct {
+    conn net.Conn
+    ident string
+}
+
+func (game *Game) kill() {
+    err := game.conn.Close()
+    if err != nil {
+        game.log("error closing game connection: ", err.Error())
+    }
+}
+
+func (game *Game) send(s string) (err error) {
+    _, err = game.conn.Write([]byte(s))
+    return err
+}
+
+func (game *Game) recv() (s string, err error) {
     var b [512]byte;
+
+    game.conn.SetReadDeadline( time.Now().Add( time.Duration(10) * time.Second ) )
+    c, err := game.conn.Read(b[:])
+    if err != nil {
+        return "", err
+    }
+
+    return strings.TrimSpace(string(b[:c])), nil
+}
+
+func (game *Game) log(s string, a ...interface{}) {
+    fmt.Printf("[%s] ", game.ident)
+    fmt.Printf(s, a...)
+    fmt.Println("")
+}
+
+func (game *Game) play() {
     n := rand.Intn(100) + 1
 
-    _, err := conn.Write([]byte("enter your username\n"))
+    game.log("beginning game; answer = %d", n)
 
-    conn.SetReadDeadline( time.Now().Add( time.Duration(10) * time.Second ) )
-    c, err := conn.Read(b[:])
+    err := game.send("enter your username\n")
+
+    username, err := game.recv()
 
     if err != nil {
-        fmt.Println("error reading: ", err.Error())
-        err = conn.Close()
-        if err != nil {
-          fmt.Println("Fatal error closing: ", err.Error())
-        }
+        game.log("error reading username: %s", err.Error())
+        game.kill()
         return
     }
 
-    username := string(b[:c])
-    username = strings.TrimSpace(username)
+    game.log("got username: %s", username)
 
-    fmt.Println("bytes read: ", c)
-    fmt.Println("username: ", username)
+    game.mainLoop(n)
 
-    if err != nil {
-        fmt.Println("Fatal error writing: ", err.Error())
-    }
+    game.kill()
+}
 
-    _, err = conn.Write([]byte("target number is 1 <= n <= 100; enter a guess\n"))
+func (game *Game) mainLoop(n int) {
+    err := game.send("target number is 1 <= n <= 100; enter a guess\n")
 
     if err != nil {
-        fmt.Println("Fatal error writing: ", err.Error())
+        game.log("error sending: %s", err.Error())
+        return
     }
 
     done := false;
 
     for ! done {
-      conn.SetReadDeadline( time.Now().Add( time.Duration(10) * time.Second ) )
-      c, err = conn.Read(b[:])
+      guess_str, err := game.recv()
+
       if err != nil {
-          fmt.Println("Fatal error reading guess: ", err.Error())
-          done = true
+          game.log("error reading guess: %s", err.Error())
+          return
+      }
+
+      guess, err := strconv.Atoi( guess_str )
+
+      if err != nil {
+          game.log("error with atoi: %s", err.Error())
           continue
       }
 
-      guess, err := strconv.Atoi( strings.TrimSpace(string(b[:c])) )
-
-      if err != nil {
-          fmt.Println("Error with atoi: ", err.Error())
-          continue
-      }
-
-      fmt.Println("guess:", guess)
+      game.log("guess: %d", guess)
 
       if guess > n {
-        _, err = conn.Write([]byte("Too high.\r\n"))
+          err = game.send("Too high.\r\n")
       } else if guess < n {
-        _, err = conn.Write([]byte("Too low.\r\n"))
+          err = game.send("Too low.\r\n")
       } else {
-        _, err = conn.Write([]byte("GOT IT!\r\n"))
+          err = game.send("GOT IT!\r\n")
         done = true
       }
-    }
 
-    err = conn.Close()
-    if err != nil {
-        fmt.Println("Fatal error closing: ", err.Error())
+      if err != nil {
+          game.log("error sending result: %s", err.Error())
+      }
     }
 }
 
+func playGame(game Game) { game.play() }
+
 func main() {
+    rand.Seed( time.Now().UTC().UnixNano())
+
     fmt.Println("start");
     ln, err := net.Listen("tcp", ":8080")
 
@@ -93,7 +126,7 @@ func main() {
             fmt.Println("Couldn't listen: ", err.Error())
             continue
         }
-        go playGame(conn)
+        go playGame( Game{ conn: conn, ident: conn.RemoteAddr().String() } )
     }
 }
 
