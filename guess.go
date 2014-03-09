@@ -113,8 +113,6 @@ func (game *Game) mainLoop(n int) {
   }
 }
 
-func playGame(game Game) { game.play() }
-
 func main() {
   rand.Seed( time.Now().UTC().UnixNano())
 
@@ -132,7 +130,9 @@ func main() {
       fmt.Println("Couldn't listen: ", err.Error())
       continue
     }
-    go playGame( Game{ conn: conn, ident: conn.RemoteAddr().String() } )
+
+    game := Game{ conn: conn, ident: conn.RemoteAddr().String() }
+    go game.play()
   }
 }
 
