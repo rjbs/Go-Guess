@@ -67,16 +67,20 @@ func (game *Game) play() {
 }
 
 func (game *Game) mainLoop(n int) {
-  err := game.send("target number is 1 <= n <= 100; enter a guess\n")
-
-  if err != nil {
-    game.log("error sending: %s", err.Error())
-    return
-  }
+  min, max := 0, 101
 
   done := false;
 
   for ! done {
+    err := game.send(
+      fmt.Sprintf("target number is %d < n < %d; enter a guess\n", min, max),
+    )
+
+    if err != nil {
+      game.log("error sending: %s", err.Error())
+      return
+    }
+
     guess_str, err := game.recv()
 
     if err != nil {
@@ -93,13 +97,13 @@ func (game *Game) mainLoop(n int) {
 
     game.log("guess: %d", guess)
 
-    if guess > n {
-      err = game.send("Too high.\r\n")
-    } else if guess < n {
-      err = game.send("Too low.\r\n")
-    } else {
+    if guess == n {
       err = game.send("GOT IT!\r\n")
       done = true
+    } else if guess > n && guess > min {
+      max = guess
+    } else if guess < n && guess < max {
+      min = guess
     }
 
     if err != nil {
