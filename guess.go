@@ -4,6 +4,7 @@ import (
   "fmt"
   "math/rand"
   "net"
+  "os"
   "strconv"
   "strings"
   "time"
@@ -122,6 +123,7 @@ func main() {
 
   if err != nil {
     fmt.Println("Couldn't listen: ", err.Error())
+    os.Exit(1)
   }
 
   for {
