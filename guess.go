@@ -101,9 +101,9 @@ func (game *Game) mainLoop(n int) {
     if guess == n {
       err = game.send("GOT IT!\r\n")
       done = true
-    } else if guess > n && guess > min {
+    } else if guess > n && guess < max {
       max = guess
-    } else if guess < n && guess < max {
+    } else if guess < n && guess > min {
       min = guess
     }
 
